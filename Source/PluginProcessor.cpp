@@ -253,13 +253,14 @@ void CaratAudioProcessor::processChunk (juce::AudioBuffer<float>& io, int numCh,
 
         if (numCh == 2)
         {
-            // Stereo: L,R  |  Mid: (L+R)/2 su entrambi  |  Side: (L-R)/2 su entrambi
+            // Stereo: L,R  |  Mid: (L+R)/2 su entrambi  |  Side: S a sinistra, -S a destra
+            // (S = (L-R)/2: la parte laterale come si sente nell'immagine stereo)
             const float L = out[0], R = out[1];
             const float l2 = sMidL * L + sMidR * R;
             const float r2 = sMidR * L + sMidL * R;
             const float side = 0.5f * (L - R);
             out[0] = l2 + (side - l2) * sSide;
-            out[1] = r2 + (side - r2) * sSide;
+            out[1] = r2 + (-side - r2) * sSide;
         }
         for (int c = 0; c < numCh; ++c)
             wet[c][i] = juce::jlimit (-4.0f, 4.0f, carat::sanitize (out[c]));
