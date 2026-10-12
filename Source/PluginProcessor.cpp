@@ -71,20 +71,20 @@ juce::AudioProcessorValueTreeState::ParameterLayout CaratAudioProcessor::createL
 //==============================================================================
 bool CaratAudioProcessor::isBusesLayoutSupported (const BusesLayout& layouts) const
 {
-    const auto in  = layouts.getMainInputChannelSet();
-    const auto out = layouts.getMainOutputChannelSet();
-    if (in != out) return false;
-    return out == juce::AudioChannelSet::mono() || out == juce::AudioChannelSet::stereo();
+    // Plugin da mastering: solo stereo -> stereo. Cosi' nessun host puo'
+    // caricarlo in una configurazione mono o mista.
+    return layouts.getMainInputChannelSet() == juce::AudioChannelSet::stereo()
+        && layouts.getMainOutputChannelSet() == juce::AudioChannelSet::stereo();
 }
 
 void CaratAudioProcessor::prepareToPlay (double sampleRate, int samplesPerBlock)
 {
-    const int numCh = juce::jlimit (1, 2, getMainBusNumOutputChannels());
     maxBlock = juce::jmax (1, samplesPerBlock);
 
     // Oversampling 8x, filtri FIR a fase lineare: il clip e la saturazione
-    // lavorano lontano dalla frequenza di Nyquist (niente aliasing udibile)
-    oversampling = std::make_unique<juce::dsp::Oversampling<float>> ((size_t) numCh, 3,
+    // lavorano lontano dalla frequenza di Nyquist (niente aliasing udibile).
+    // Sempre preparato per 2 canali, qualunque cosa annunci l'host.
+    oversampling = std::make_unique<juce::dsp::Oversampling<float>> ((size_t) 2, 3,
         juce::dsp::Oversampling<float>::filterHalfBandFIREquiripple, true, true);
     oversampling->initProcessing ((size_t) maxBlock);
     oversampling->reset();
@@ -127,8 +127,15 @@ void CaratAudioProcessor::processBlock (juce::AudioBuffer<float>& buffer, juce::
 {
     juce::ScopedNoDenormals noDenormals;
 
-    const int numCh = juce::jmin (2, getTotalNumOutputChannels(), buffer.getNumChannels());
+    const int numCh = juce::jmin (2, buffer.getNumChannels());
     const int n = buffer.getNumSamples();
+    hostInChannels.store (getTotalNumInputChannels());
+    hostOutChannels.store (getTotalNumOutputChannels());
+    hostBufferChannels.store (buffer.getNumChannels());
+
+    // canali in piu' (se l'host ne passa) vengono azzerati
+    for (int c = 2; c < buffer.getNumChannels(); ++c)
+        buffer.clear (c, 0, buffer.getNumSamples());
     if (numCh == 0 || n == 0 || oversampling == nullptr) return;
 
     if (resetMeters.exchange (false))

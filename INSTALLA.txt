@@ -1,32 +1,39 @@
-CARAT - Installazione su Mac
-============================
+CARAT - Installazione e aggiornamento su Mac
+==========================================
 
-METODO RAPIDO: apri il Terminale, incolla questo blocco e premi Invio
-(cerca Carat in Download e Scrivania, lo installa e lo sblocca):
+INSTALLA O AGGIORNA CON UN SOLO COMANDO
+1) Scarica Carat-macOS.zip dalla pagina di download (resta nella cartella Download,
+   non serve decomprimerlo).
+2) Chiudi Ableton Live.
+3) Apri il Terminale, incolla tutto il blocco qui sotto e premi Invio.
+   Il comando prende il Carat piu' recente che hai scaricato, cancella la versione
+   vecchia, installa quella nuova e la sblocca.
 
-V=$(find ~/Downloads ~/Desktop -maxdepth 5 -name "Carat.vst3" 2>/dev/null | head -1)
-C=$(find ~/Downloads ~/Desktop -maxdepth 5 -name "Carat.component" 2>/dev/null | head -1)
-mkdir -p ~/Library/Audio/Plug-Ins/VST3 ~/Library/Audio/Plug-Ins/Components
-rm -rf ~/Library/Audio/Plug-Ins/VST3/Carat.vst3 ~/Library/Audio/Plug-Ins/Components/Carat.component
-cp -R "$V" ~/Library/Audio/Plug-Ins/VST3/ && cp -R "$C" ~/Library/Audio/Plug-Ins/Components/
-xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Carat.vst3 ~/Library/Audio/Plug-Ins/Components/Carat.component && echo "FATTO: Carat installato"
+Z=$(ls -t ~/Downloads/Carat-macOS*.zip 2>/dev/null | head -1)
+if [ -n "$Z" ]; then rm -rf ~/Downloads/Carat-nuovo; unzip -oq "$Z" -d ~/Downloads/Carat-nuovo; fi
+V=$(find ~/Downloads ~/Desktop -maxdepth 5 -name "Carat.vst3" -exec stat -f "%m %N" {} \; 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+C=$(find ~/Downloads ~/Desktop -maxdepth 5 -name "Carat.component" -exec stat -f "%m %N" {} \; 2>/dev/null | sort -rn | head -1 | cut -d' ' -f2-)
+if [ -n "$V" ] && [ -n "$C" ]; then
+  mkdir -p ~/Library/Audio/Plug-Ins/VST3 ~/Library/Audio/Plug-Ins/Components
+  rm -rf ~/Library/Audio/Plug-Ins/VST3/Carat.vst3 ~/Library/Audio/Plug-Ins/Components/Carat.component
+  cp -R "$V" ~/Library/Audio/Plug-Ins/VST3/ && cp -R "$C" ~/Library/Audio/Plug-Ins/Components/
+  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Carat.vst3 ~/Library/Audio/Plug-Ins/Components/Carat.component
+  killall -9 AudioComponentRegistrar 2>/dev/null
+  echo "FATTO: Carat installato/aggiornato. Ora riapri Live."
+else
+  echo "Non trovo Carat nei Download: scarica Carat-macOS.zip e riprova."
+fi
 
-Poi salta al punto 3.
-
-METODO MANUALE
-
-1) Copia i plugin nelle cartelle di sistema (in Finder: Vai > Vai alla cartella...):
-   - Carat.vst3       ->  ~/Library/Audio/Plug-Ins/VST3/
-   - Carat.component  ->  ~/Library/Audio/Plug-Ins/Components/
-
-2) Sblocca i plugin (macOS blocca quelli scaricati da internet e non firmati).
-   Apri il Terminale e incolla questa riga, poi premi Invio:
-
-   xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Carat.vst3 ~/Library/Audio/Plug-Ins/Components/Carat.component
-
-3) In Ableton Live: Impostazioni > Plug-in
-   - attiva "Usa Audio Units v2" e "Usa cartelle di sistema per i plug-in VST3"
-   - premi "Riesamina"
+4) Riapri Live. La prima volta: Impostazioni > Plug-in, attiva "Usa Audio Units v2" e
+   "Usa cartelle di sistema per i plug-in VST3", poi premi "Riesamina".
    Carat compare nel browser sotto Plug-in > Vibe Audio.
 
-Ogni nuova versione: ripeti i passi 1 e 2 (sostituendo i file), poi riapri il progetto.
+Consiglio: in un progetto usa una sola delle due versioni (VST3 oppure AU).
+
+
+INSTALLAZIONE MANUALE (alternativa)
+- Carat.vst3       ->  ~/Library/Audio/Plug-Ins/VST3/
+- Carat.component  ->  ~/Library/Audio/Plug-Ins/Components/
+  (in Finder: Vai > Vai alla cartella... e incolla il percorso)
+- poi sblocca con il Terminale:
+  xattr -dr com.apple.quarantine ~/Library/Audio/Plug-Ins/VST3/Carat.vst3 ~/Library/Audio/Plug-Ins/Components/Carat.component

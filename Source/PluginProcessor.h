@@ -49,6 +49,8 @@ public:
     std::atomic<float> lufsMomentary { -100.0f }, lufsShort { -100.0f }, lufsIntegrated { -100.0f };
     std::atomic<float> truePeakMaxDb { -100.0f }, loudnessGainDb { 0.0f };
     std::atomic<bool> resetMeters { false };
+    // Diagnostica: canali che l'host sta effettivamente usando
+    std::atomic<int> hostInChannels { 0 }, hostOutChannels { 0 }, hostBufferChannels { 0 };
 
 private:
     void processChunk (juce::AudioBuffer<float>& mainBus, int numCh, int n);

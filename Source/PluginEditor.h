@@ -4,17 +4,27 @@
 
 namespace carat::ui
 {
+// Frontale in oro spazzolato, finestre "display" scure, scritte incise.
 struct Palette
 {
-    static inline const juce::Colour bg      { 0xff131315 };
-    static inline const juce::Colour panel   { 0xff1c1c1f };
-    static inline const juce::Colour panelHi { 0xff29292d };
-    static inline const juce::Colour text    { 0xffede7db };
-    static inline const juce::Colour textDim { 0xff8d877c };
-    static inline const juce::Colour gold    { 0xffd8ac52 };
-    static inline const juce::Colour goldDim { 0xff5e4a24 };
-    static inline const juce::Colour red     { 0xffe0563f };
+    static inline const juce::Colour faceTop    { 0xffe6c574 };
+    static inline const juce::Colour faceMid    { 0xffd0a94f };
+    static inline const juce::Colour faceBottom { 0xffb08634 };
+    static inline const juce::Colour engrave    { 0xff33260e };   // scritte incise
+    static inline const juce::Colour engraveDim { 0xff5f4a1f };
+    static inline const juce::Colour highlight  { 0x66fff3cf };   // luce sotto l'incisione
+    static inline const juce::Colour window     { 0xff15120d };   // finestre display
+    static inline const juce::Colour windowHi   { 0xff2b251b };
+    static inline const juce::Colour lcd        { 0xfff4d48a };   // testo/valori nel display
+    static inline const juce::Colour lcdDim     { 0xff9a875f };
+    static inline const juce::Colour led        { 0xffffc94a };
+    static inline const juce::Colour red        { 0xffe0563f };
 };
+
+// Testo inciso sul frontale (scuro con riflesso chiaro)
+void drawEngraved (juce::Graphics&, const juce::String&, juce::Rectangle<float>, juce::Justification, float size, bool bold = true);
+// Finestra scura incassata
+void drawWindow (juce::Graphics&, juce::Rectangle<float>, float corner = 6.0f);
 
 class LookAndFeel : public juce::LookAndFeel_V4
 {
@@ -32,14 +42,14 @@ class Knob : public juce::Component
 public:
     Knob (juce::AudioProcessorValueTreeState&, const juce::String& paramId, const juce::String& name);
     void resized() override;
+    void paint (juce::Graphics&) override;
     juce::Slider slider;
 
 private:
-    juce::Label label;
+    juce::String name;
     std::unique_ptr<juce::AudioProcessorValueTreeState::SliderAttachment> attachment;
 };
 
-// Fila di pulsanti per un parametro a scelta (uno acceso alla volta)
 class ChoiceButtons : public juce::Component
 {
 public:
@@ -54,7 +64,6 @@ private:
     int selected = 0;
 };
 
-// Curva di trasferimento statica (ingresso dBFS -> uscita dBFS) + punto live
 class TransferDisplay : public juce::Component
 {
 public:
@@ -67,7 +76,6 @@ private:
     bool sat = false;
 };
 
-// Barra orizzontale di riduzione (0..range dB)
 class ReductionBar : public juce::Component
 {
 public:
@@ -135,6 +143,7 @@ private:
     carat::ui::LoudnessPanel loudness;
 
     float inS = -100.0f, outS = -100.0f, clipS = 0.0f, tpS = 0.0f, curvePeak = -100.0f;
+    juce::String channelInfo;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CaratAudioProcessorEditor)
 };
