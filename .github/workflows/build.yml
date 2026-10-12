@@ -1,0 +1,161 @@
+name: Build (macOS + Windows)
+
+on:
+  push:
+  workflow_dispatch:
+
+jobs:
+  macos:
+    name: macOS (VST3 + AU)
+    runs-on: macos-15
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configura (binario universale Apple Silicon + Intel)
+        run: >
+          cmake -S . -B build -G Xcode
+          -DCMAKE_OSX_ARCHITECTURES="arm64;x86_64"
+          -DCARAT_COPY_AFTER_BUILD=ON
+          -DCARAT_BUILD_TESTS=ON
+
+      - name: Compila
+        run: cmake --build build --config Release --parallel
+
+      - name: Test del motore audio
+        run: |
+          TEST_BIN=$(find build -name CaratDspTests -type f -perm +111 | head -1)
+          "$TEST_BIN"
+
+      - name: Validazione Audio Unit (auval)
+        run: |
+          killall -9 AudioComponentRegistrar || true
+          auval -v aufx Crt1 Vibe
+
+      - name: Validazione con pluginval
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_macOS.zip
+          unzip -q pluginval.zip
+          report () {
+            echo "::error title=pluginval $(basename "$1") exit $2::$(grep -iE 'seed' pv.log | head -2 | tr '\n' ' ')"
+            grep -n -iE 'fail|error|!!!|assert|exception|crash|timed out|Starting test' pv.log | tail -60 > rep.txt || true
+            tail -30 pv.log >> rep.txt
+            split -l 12 rep.txt part_
+            for f in part_*; do echo "::error title=pluginval log::$(cut -c1-180 "$f" | tr '\n' '|')"; done
+          }
+          validate () {
+            code=0
+            ./pluginval.app/Contents/MacOS/pluginval --strictness-level 8 --skip-gui-tests --validate-in-process \
+              --timeout-ms 600000 "$1" > pv.log 2>&1 || code=$?
+            tail -40 pv.log
+            if [ $code -ne 0 ]; then
+              report "$1" $code
+              exit $code
+            fi
+          }
+          validate build/Carat_artefacts/Release/VST3/Carat.vst3
+          validate ~/Library/Audio/Plug-Ins/Components/Carat.component
+
+      - name: Prepara il pacchetto
+        run: |
+          mkdir -p dist
+          cp -R build/Carat_artefacts/Release/VST3/Carat.vst3 dist/
+          cp -R build/Carat_artefacts/Release/AU/Carat.component dist/
+          codesign --force --deep -s - dist/Carat.vst3
+          codesign --force --deep -s - dist/Carat.component
+          cp INSTALLA.txt dist/
+          cd dist && zip -r -y ../Carat-macOS.zip .
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Carat-macOS
+          path: Carat-macOS.zip
+          retention-days: 30
+
+  windows:
+    name: Windows (VST3)
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Configura (64 bit)
+        run: cmake -S . -B build -A x64 -DCARAT_BUILD_TESTS=ON
+
+      - name: Compila
+        run: cmake --build build --config Release --parallel
+
+      - name: Test del motore audio
+        run: |
+          $test = Get-ChildItem -Path build -Recurse -Filter CaratDspTests.exe | Select-Object -First 1
+          & $test.FullName
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+
+      - name: Validazione con pluginval
+        shell: bash
+        run: |
+          curl -sSL -o pluginval.zip https://github.com/Tracktion/pluginval/releases/latest/download/pluginval_Windows.zip
+          unzip -q pluginval.zip -d pluginval
+          PV=$(find pluginval -name pluginval.exe | head -1)
+          code=0
+          "$PV" --strictness-level 8 --skip-gui-tests --validate-in-process --timeout-ms 600000 \
+            build/Carat_artefacts/Release/VST3/Carat.vst3 > pv.log 2>&1 || code=$?
+          tail -40 pv.log
+          if [ $code -ne 0 ]; then
+            echo "::error title=pluginval Windows exit $code::$(grep -iE 'seed' pv.log | head -2 | tr '\n' ' ')"
+            grep -n -iE 'fail|error|!!!|assert|exception|crash|timed out|Starting test' pv.log | tail -60 > rep.txt || true
+            tail -30 pv.log >> rep.txt
+            split -l 12 rep.txt part_
+            for f in part_*; do echo "::error title=pluginval log::$(cut -c1-180 "$f" | tr '\n' '|')"; done
+            exit $code
+          fi
+
+      - name: Prepara il pacchetto
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Copy-Item -Recurse build/Carat_artefacts/Release/VST3/Carat.vst3 dist/
+          Copy-Item INSTALLA-Windows.txt dist/INSTALLA.txt
+          Compress-Archive -Path dist/* -DestinationPath Carat-Windows.zip
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: Carat-Windows
+          path: Carat-Windows.zip
+          retention-days: 30
+
+  # Ad ogni aggiornamento di "main" pubblica (o aggiorna) la pagina di download
+  # pubblica della versione indicata in CMakeLists.txt: senza login, senza scadenza.
+  release:
+    name: Pubblica la versione
+    if: github.ref == 'refs/heads/main'
+    needs: [macos, windows]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Leggi il numero di versione
+        id: ver
+        run: echo "version=$(grep -oP 'project\(Carat VERSION \K[0-9.]+' CMakeLists.txt)" >> "$GITHUB_OUTPUT"
+
+      - uses: actions/download-artifact@v4
+        with:
+          path: artifacts
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.ver.outputs.version }}
+          target_commitish: ${{ github.sha }}
+          name: Carat v${{ steps.ver.outputs.version }}
+          make_latest: true
+          files: artifacts/**/*.zip
+          body: |
+            **Carat** – clipper da mastering in stile convertitore A/D.
+
+            Scarica il file per il tuo computer (in fondo, sotto *Assets*):
+            - **Carat-macOS.zip** – Mac (Apple Silicon e Intel), formati VST3 e AU
+            - **Carat-Windows.zip** – Windows 10/11 a 64 bit, formato VST3
+
+            Dentro ogni zip c'è il file **INSTALLA.txt** con i passaggi di installazione.
