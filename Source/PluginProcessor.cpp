@@ -167,15 +167,15 @@ void CaratAudioProcessor::processChunk (juce::AudioBuffer<float>& io, int numCh,
     const float bypassTarget = pBypass->load() > 0.5f ? 1.0f : 0.0f;
     const bool matchOn = pMatch->load() > 0.5f;
 
-    // --- ingresso: pulizia, copia dry, meter
-    float inPeak = 0.0f;
+    // --- ingresso: pulizia, copia dry, meter (per canale)
+    float inPeak[2] = { 0.0f, 0.0f };
     for (int c = 0; c < numCh; ++c)
     {
         auto* d = io.getWritePointer (c);
         for (int i = 0; i < n; ++i)
         {
             d[i] = carat::sanitize (d[i]);
-            inPeak = juce::jmax (inPeak, std::abs (d[i]));
+            inPeak[c] = juce::jmax (inPeak[c], std::abs (d[i]));
         }
         dryBuffer.copyFrom (c, 0, io, c, 0, n);
     }
@@ -209,13 +209,9 @@ void CaratAudioProcessor::processChunk (juce::AudioBuffer<float>& io, int numCh,
 
     // --- meter dell'uscita elaborata
     outLoudness.process (wet, numCh, n);
-    float outPeak = 0.0f;
     for (int c = 0; c < numCh; ++c)
         for (int i = 0; i < n; ++i)
-        {
-            outPeak = juce::jmax (outPeak, std::abs (wet[c][i]));
             tpMaxLin = juce::jmax (tpMaxLin, tpDisplay[(size_t) c].push (wet[c][i]));
-        }
 
     // --- confronto a pari volume: guadagno da dare al segnale originale
     const float inS = inLoudness.getShortTerm(), outS = outLoudness.getShortTerm();
@@ -269,10 +265,15 @@ void CaratAudioProcessor::processChunk (juce::AudioBuffer<float>& io, int numCh,
             wet[c][i] = juce::jlimit (-4.0f, 4.0f, carat::sanitize (out[c]));
     }
 
-    // --- pubblica i meter
+    // --- pubblica i meter (uscita misurata su cio' che esce davvero dal plugin)
     auto storeMax = [] (std::atomic<float>& a, float v) { a.store (juce::jmax (a.load(), v)); };
-    storeMax (meterInPeakDb, juce::Decibels::gainToDecibels (inPeak, -100.0f));
-    storeMax (meterOutPeakDb, juce::Decibels::gainToDecibels (outPeak, -100.0f));
+    for (int c = 0; c < numCh; ++c)
+    {
+        float outPeak = 0.0f;
+        for (int i = 0; i < n; ++i) outPeak = juce::jmax (outPeak, std::abs (wet[c][i]));
+        storeMax (meterInPeakDb[c], juce::Decibels::gainToDecibels (inPeak[c], -100.0f));
+        storeMax (meterOutPeakDb[c], juce::Decibels::gainToDecibels (outPeak, -100.0f));
+    }
     storeMax (meterClipDb, clipMax);
     storeMax (meterTpLimitDb, limiter.takeMaxReductionDb());
     lufsMomentary.store (outLoudness.getMomentary());

@@ -286,12 +286,20 @@ void LevelMeter::paint (juce::Graphics& g)
     auto r = getLocalBounds().toFloat();
     auto lbl = r.removeFromBottom (16.0f);
     drawEngraved (g, title, lbl, juce::Justification::centred, 10.0f);
+    auto lr = r.removeFromBottom (12.0f);
+    drawEngraved (g, "L", lr.withWidth (lr.getWidth() / 2), juce::Justification::centred, 8.5f);
+    drawEngraved (g, "R", lr.withTrimmedLeft (lr.getWidth() / 2), juce::Justification::centred, 8.5f);
 
     drawWindow (g, r, 3.0f);
     auto inner = r.reduced (3.0f);
-    const float frac = juce::jlimit (0.0f, 1.0f, (level + 48.0f) / 51.0f); // -48..+3 dBFS
-    g.setColour (level > -0.05f ? Palette::red : Palette::led);
-    g.fillRoundedRectangle (inner.withTop (inner.getBottom() - inner.getHeight() * frac), 2.0f);
+    const float w = (inner.getWidth() - 2.0f) / 2.0f;
+    for (int c = 0; c < 2; ++c)
+    {
+        auto bar = inner.withWidth (w).withX (inner.getX() + (float) c * (w + 2.0f));
+        const float frac = juce::jlimit (0.0f, 1.0f, (level[c] + 48.0f) / 51.0f); // -48..+3 dBFS
+        g.setColour (level[c] > -0.05f ? Palette::red : Palette::led);
+        g.fillRect (bar.withTop (bar.getBottom() - bar.getHeight() * frac));
+    }
     const float y0 = inner.getBottom() - inner.getHeight() * (48.0f / 51.0f);
     g.setColour (Palette::lcd.withAlpha (0.5f));
     g.drawHorizontalLine ((int) y0, inner.getX(), inner.getRight());
@@ -396,19 +404,24 @@ void CaratAudioProcessorEditor::timerCallback()
 {
     refreshCurve();
 
-    const float in = proc.meterInPeakDb.exchange (-100.0f);
-    const float out = proc.meterOutPeakDb.exchange (-100.0f);
+    float in = -100.0f;
+    for (int c = 0; c < 2; ++c)
+    {
+        const float i = proc.meterInPeakDb[c].exchange (-100.0f);
+        const float o = proc.meterOutPeakDb[c].exchange (-100.0f);
+        inS[c] = i > inS[c] ? i : inS[c] - 1.2f;
+        outS[c] = o > outS[c] ? o : outS[c] - 1.2f;
+        in = juce::jmax (in, i);
+    }
     const float clip = proc.meterClipDb.exchange (0.0f);
     const float tp = proc.meterTpLimitDb.exchange (0.0f);
 
-    inS = in > inS ? in : inS - 1.2f;
-    outS = out > outS ? out : outS - 1.2f;
     clipS = clip > clipS ? clip : clipS + (clip - clipS) * 0.15f;
     tpS = tp > tpS ? tp : tpS + (tp - tpS) * 0.15f;
     curvePeak = in > curvePeak ? in : curvePeak - 0.8f;
 
-    inMeter.setValue (inS);
-    outMeter.setValue (outS);
+    inMeter.setValues (inS[0], inS[1]);
+    outMeter.setValues (outS[0], outS[1]);
     clipBar.setValue (clipS);
     tpBar.setValue (tpS);
     transfer.setInputPeak (curvePeak);
@@ -498,8 +511,8 @@ void CaratAudioProcessorEditor::resized()
 
     // destra: loudness + meter
     loudness.setBounds (646, 70, 248, 258);
-    inMeter.setBounds (902, 70, 24, 258);
-    outMeter.setBounds (932, 70, 24, 258);
+    inMeter.setBounds (900, 70, 26, 258);
+    outMeter.setBounds (930, 70, 26, 258);
     tpButton.setBounds (646, 340, 310, 28);
     matchButton.setBounds (646, 374, 310, 28);
 

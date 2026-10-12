@@ -43,7 +43,7 @@ public:
     juce::AudioProcessorValueTreeState apvts;
 
     // Meter letti dall'interfaccia (valori di picco: l'interfaccia li azzera)
-    std::atomic<float> meterInPeakDb { -100.0f }, meterOutPeakDb { -100.0f };
+    std::atomic<float> meterInPeakDb[2] { { -100.0f }, { -100.0f } }, meterOutPeakDb[2] { { -100.0f }, { -100.0f } };
     std::atomic<float> meterClipDb { 0.0f }, meterTpLimitDb { 0.0f };
     // Valori continui
     std::atomic<float> lufsMomentary { -100.0f }, lufsShort { -100.0f }, lufsIntegrated { -100.0f };

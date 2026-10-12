@@ -88,16 +88,17 @@ private:
     float range, value = 0.0f;
 };
 
+// Meter stereo: due barre (L e R)
 class LevelMeter : public juce::Component
 {
 public:
     explicit LevelMeter (juce::String t) : title (std::move (t)) {}
-    void setValue (float db) { level = db; repaint(); }
+    void setValues (float l, float r) { level[0] = l; level[1] = r; repaint(); }
     void paint (juce::Graphics&) override;
 
 private:
     juce::String title;
-    float level = -100.0f;
+    float level[2] { -100.0f, -100.0f };
 };
 
 class LoudnessPanel : public juce::Component
@@ -142,7 +143,8 @@ private:
     carat::ui::LevelMeter inMeter { "IN" }, outMeter { "OUT" };
     carat::ui::LoudnessPanel loudness;
 
-    float inS = -100.0f, outS = -100.0f, clipS = 0.0f, tpS = 0.0f, curvePeak = -100.0f;
+    float inS[2] { -100.0f, -100.0f }, outS[2] { -100.0f, -100.0f };
+    float clipS = 0.0f, tpS = 0.0f, curvePeak = -100.0f;
     juce::String channelInfo;
 
     JUCE_DECLARE_NON_COPYABLE_WITH_LEAK_DETECTOR (CaratAudioProcessorEditor)
